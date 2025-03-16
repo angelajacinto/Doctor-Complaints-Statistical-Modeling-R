@@ -1,0 +1,308 @@
+---
+title: "Modeling Complaints Against Doctors"
+author: "Angela Jacinto"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    self_contained: false
+    lib_dir: libs
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.path = "../output/figures/")
+```
+
+## I. Introduction
+
+Patient complaints provide essential feedback about healthcare service quality, but analyzing 
+complaint data can be challenging because many patients report no complaints at all. 
+To better understand this data, a specialized statistical approach called a Zero-Inflated 
+Negative Binomial (ZINB) model is required.
+
+## II. Data Import and Inspection
+```{r data-import, include=TRUE}
+df <- read.table('../data/compdat.txt', header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+```
+
+```{r}
+summary(df)
+str(df)
+```
+
+## III. Data Cleaning and Pre-processing
+```{r}
+# Converting categorical variables to factors
+df$residency <- as.factor(df$residency)
+df$gender <- as.factor(df$gender)
+
+# Keeping rows where visits and complaints are 0 or positive (removing negative values)
+df <- df[df$visits >= 0 & df$complaints >= 0, ]
+```
+
+
+## IV. Exploratory Data Analysis (EDA)
+```{r}
+# Examining count variable complaints 
+table(df$gender, df$complaints)
+table(df$residency, df$complaints)
+hist(df$complaints, main = "Histogram of Complaints")
+```
+```{r}
+library(lattice)
+histogram(~complaints | gender*residency, df, breaks = 0:12 - 0.5, main = "Histogram of complaints by Gender and Residency", xlab = "Complaints", ylab = "Frequency")
+```
+
+The histogram reveals a high number of zeros in the dataset, indicating potential zero inflation; where there are more zeros than expected under a standard Poisson model. Additionally, the distribution is heavily right-skewed, suggesting overdispersion, meaning that a Poisson model may not be suitable. To confirm overdispersion, we should compare the variance and mean of the complaints variable.
+
+## V. Checking Statistical Assumptions
+
+### Confirming overdispersion
+```{r}
+# Calculate mean and variance of complaints
+mean_complaints <- mean(df$complaints)
+var_complaints <- var(df$complaints)
+
+# Check for overdispersion
+overdispersion <- var_complaints > mean_complaints
+print(paste("Mean:", mean_complaints, "Variance:", var_complaints))
+```
+We can see that the variance is much larger than the mean, which confirms the presence of overdispersion. This means the data is more spread out than what a standard Poisson model would expect. 
+
+```{r, message=FALSE, warning=FALSE}
+library(AER)
+poisson_model <- glm(complaints ~ gender + residency, family = poisson, data = df)
+dispersiontest(poisson_model)
+```
+To further confirm overdispersion, we use a dispersion test from the AER package. The p-value from the test is 0.001785, which is very small (anything below 0.05 is considered significant). This provides strong evidence that the Poisson model isn’t a good fit suggesting the use of a Negative Binomial model.
+
+### Confirming Zero-Inflation
+A poisson model assumes that the probability of a zero count is:
+\[P(Y = 0) = e^{-\lambda}\]
+
+To confirm the presence of zero inflation, we compare the observed number of zeros in our data to the expected number ($\lambda$) under a Poisson model, which is used for modeling count data. 
+```{r}
+# Calculate the observed proportion of zero complaints
+observed_zeros <- sum(df$complaints == 0) / nrow(df)
+
+# Mean complaints
+lambda_hat <- mean(df$complaints)
+
+# Expected proportion of zeros under Poisson distribution
+expected_zeros <- exp(-lambda_hat)
+
+print(paste("Observed proportion of zeros:", round(observed_zeros, digits = 4)))
+print(paste("Expected proportion of zeros of Poisson model:", round(expected_zeros, digits = 4)))
+```
+The results show that 54.3% of the data consists of zeros, while the Poisson model only expects about 20.9%. This confirms zero inflation, suggesting a Zero-Inflated Poisson model may be needed.
+
+### Boxplots 
+```{r}
+boxplot(df$complaints~df$residency, xlab="Residency", ylab="Number of Complaints")
+boxplot(df$complaints~df$gender, xlab="Gender", ylab="Number of Complaints")
+```
+
+The number of complaints appears to be similarly distributed between doctors in residency training and those not in training. However, the box plot reveals that male doctors receive more complaints compared to female doctors. To further support this conclusion, we use the Wilcoxon test (median based) to check for differences in distribution and the t-test to determine if the means differ significantly.   
+
+```{r}
+wilcox.test(df$complaints ~ df$gender)
+```
+The p-value of 0.01799 is less than 0.05, so we have enough evidence to say that the number of complaints is significantly different between male and female doctors.  
+
+```{r}
+t.test(df$complaints ~ df$gender, var.equal = FALSE)
+```
+The p-value of 0.0134 is also less than 0.05, meaning there is a clear difference in the average number of complaints between male and female doctors. The confidence interval [-2.14, -0.25] does not include 0, which further confirms the difference.
+
+### Examining Continuous Variables
+```{r}
+hist(df$visits, main = "Histogram of visits" )
+hist(df$revenue, main = "Histogram of revenue" )
+hist(df$hours, main = "Histogram of hours" )
+```
+  
+The histograms of the continuous variables show only slight skewness, so applying a log transformation is not necessary.
+
+```{r}
+plot(log(df$complaints + 1) ~ df$hours, xlab="Hours", ylab="Log(Number of Complaints + 1)")
+plot(log(df$complaints + 1) ~ df$visits, xlab="Visits", ylab="Log(Number of Complaints + 1)")
+plot(log(df$complaints + 1) ~ df$revenue, xlab="Revenue", ylab="Log(Number of Complaints + 1)")
+```
+  
+These plots visualize the relationship between hours, visits, and revenue against the log-transformed number of complaints. There seems to be a moderate positive linear relationship between visits and hours. However, the log number of complaints appears to be randomly distributed with revenue, suggesting that revenue is not a strong predictor of complaints. To further measure these relationships, we need to perform a Correlation Analysis.
+
+Note: Since the complaints variable contains zeros, applying `log(df$complaints)` would result in `-Inf` values, leading to inaccurate plots. To avoid this issue, we use `log(df$complaints + 1)`.  
+
+```{r}
+cor.test(df$hours, log(df$complaints + 1))
+cor.test(df$visits, log(df$complaints + 1))
+cor.test(df$revenue, log(df$complaints + 1))
+```
+There is no significant relationship between hours worked and the number of complaints. The only significant predictor is visits (p = 0.0027, r = 0.31). 
+Hours (p = 0.6199, r = 0.05) and revenue (p = 0.6807, r = -0.04) are not strong predictors.
+
+### Checking for multicollinearity using VIF
+The Variance Inflation Factor helps detect multicollinearity, which happens when predictors are too closely related. It measures how much a predictor's variance is inflated due to correlations with other predictors. If VIF > 5, multicollinearity is a concern. If VIF > 10, it's a serious issue which needs to be addressed.
+```{r}
+library(car)
+vif_model <- lm(complaints ~ visits + residency + gender + revenue + hours, data = df)
+vif_values <- vif(vif_model)
+print(vif_values)
+```
+The VIF values are all < 2, which means multicollinearity isn’t a concern.
+
+## VI. Model Selection and Development
+Since overdispersion and zero inflation are present, neither a Negative Binomial nor a Zero-Inflated Poisson model alone is enough. Therefore, Zero-Inflated Negative Binomial is the best choice, which will allow us to understand:
+1. How different factors influence the number of complaints when they do occur (the “count” part), and
+2. Why some observations have no complaints at all (the “zero-inflation” part).
+```{r}
+predictors <- c("visits", "residency", "gender", "revenue", "hours")
+base_formula <- as.formula(paste("complaints ~", paste(predictors, collapse = " + "), "|", paste(predictors, collapse = " + ")))
+```
+
+```{r, message=FALSE, warning=FALSE}
+library(pscl)
+zinb_base <- zeroinfl(base_formula, data = df, dist = 'negbin')
+summary(zinb_base)
+```
+After fitting the base model, we can see that the `visits` predictor produced NaNs, meaning the model couldn’t estimate some coefficients properly. This could be due to perfect separation, where certain values of `visits` always lead to zero complaints, while others always lead to non-zero complaints. Since the model requires variation to estimate probabilities, this lack of variability makes it difficult to compute meaningful coefficients. 
+
+```{r}
+df$zero_complaints <- as.numeric(df$complaints == 0)
+aggregate(zero_complaints ~ visits, data = df, mean)
+```
+Some values of `visits` are always 1 in zero_complaints while some values of visits are always 0 in zero_complaints, confirming perfect separation. Therefore, we remove it from the zero-inflation model while keeping it in the count model.
+  
+```{r}
+base_formula <- as.formula(paste("complaints ~", paste(predictors, collapse = " + "), "| residency + gender + revenue + hours"))
+
+zinb_base <- zeroinfl(base_formula, data = df, dist = 'negbin')
+summary(zinb_base)
+```
+**Count Model (number of complaints)**  
+**Visits:** A higher number of visits is strongly linked to a higher expected number of complaints. (p < 0.001)  
+**Revenue:** Organizations with higher revenue tend to have fewer complaints. (p = 0.0108)  
+Residency, Gender, Hours: These factors did not show a strong link with the number of complaints in this dataset.
+
+**Zero-Inflation Model (likelihood of zero complaints)**  
+**Gender:** Shows a marginal (slightly weaker) connection to having zero complaints.   
+**Residency, Revenue, Hours:** These were not strongly associated with whether there are zero complaints.
+
+Finally, the theta value (9.3768) tells us that the data have more variation (overdispersion) than what a simple Poisson model would usually handle. This justifies using a negative binomial approach, which is better at capturing overdispersion.
+
+
+### Introducing interaction terms in the count model 
+To better capture relationships between predictors, we add interaction terms based on theoretical relevance rather than testing all possible combinations. Interaction terms help us understand if the influence of one predictor on complaints changes according to another factor.
+
+**Potential interactions:**  
+**visits:revenue** - We investigate whether the impact of patient visit frequency on the number of complaints changes depending on the doctor’s revenue.  
+**gender:revenue** - We explore if the effect of a doctor’s revenue on complaints differs between male and female doctors.  
+**residency:hours** - We examine whether the effect of service hours on complaints differs for resident and non-resident patients.
+```{r}
+# Add interactions one at a time to assess their contribution
+interaction_formula <- as.formula("complaints ~ visits + residency + gender + revenue + hours + 
+                                  visits:revenue + gender:revenue + residency:hours | 
+                                  residency + gender + revenue + hours")
+
+zinb_interaction <- zeroinfl(interaction_formula, data = df, dist = 'negbin')
+summary(zinb_interaction)
+```
+The interaction terms may be highly correlated with their main effects or with each other, especially with limited data.  
+```{r}
+# Standardizing continuous variables to reduce multicollinearity
+df$visits_c <- scale(df$visits, center = TRUE, scale = TRUE)
+df$revenue_c <- scale(df$revenue, center = TRUE, scale = TRUE)
+df$hours_c <- scale(df$hours, center = TRUE, scale = TRUE)
+```
+
+```{r}
+# Test one interaction at a time
+formula1 <- as.formula("complaints ~ visits_c + residency + gender + revenue_c + hours_c + 
+                       visits_c:revenue_c | 
+                       residency + gender + revenue_c + hours_c")
+                       
+zinb_int1 <- zeroinfl(formula1, data = df, dist = "negbin")
+summary(zinb_int1)
+```
+```{r}
+formula2 <- as.formula("complaints ~ visits_c + residency + gender + revenue_c + hours_c + 
+                        gender:revenue_c | 
+                       residency + gender + revenue_c + hours_c")
+                       
+zinb_int2 <- zeroinfl(formula2, data = df, dist = "negbin")
+summary(zinb_int2)
+```
+```{r}
+formula3 <- as.formula("complaints ~ visits_c + residency + gender + revenue_c + hours_c + 
+                        residency:hours_c | 
+                       residency + gender + revenue_c + hours_c")
+                       
+zinb_int3 <- zeroinfl(formula3, data = df, dist = "negbin")
+summary(zinb_int3)
+```
+### Introducing interaction terms in the zero-inflation component (probability of having zero complaints) 
+```{r}
+formula4 <- as.formula("complaints ~ visits_c + residency + gender + revenue_c + hours_c + 
+                        residency:hours_c | 
+                       residency + gender + revenue_c + hours_c + gender:hours_c")
+                       
+zinb_int4 <- zeroinfl(formula4, data = df, dist = "negbin")
+summary(zinb_int4)
+```
+Adding an interaction term `gender:hours_c` to the zero-inflation part of the model improved our understanding of why some patients never report complaints. This interaction suggests that the relationship between service hours and the likelihood of having zero complaints differs between male and female patients.
+
+Additionally, the previously identified interaction `residency:hours` remains important in the count model, meaning that the impact of service hours on the number of complaints continues to vary depending on patient residency status.
+These interactions help us better understand not just how often complaints occur, but also why certain patients might never complain at all.
+
+## VII. Model Comparison
+```{r}
+models <- list(base = zinb_base, int1 = zinb_int1, int2 = zinb_int2, int3 = zinb_int3, int4 = zinb_int4)
+AIC_values <- sapply(models, AIC)
+BIC_values <- sapply(models, BIC)
+comparison <- data.frame(AIC = AIC_values, BIC = BIC_values)
+comparison
+```
+Based on the AIC and BIC values, model `int4` is clearly the best choice, with the lowest AIC and BIC.
+The interaction between `residency:hours_c` in the count component and `gender:hours_c` in the zero-inflation component demonstrates an important relationship to the data that improves model performance.
+
+**Residency:Hours in the count model:**  
+This suggests that the number of complaints depends not only on service hours but also varies by patient residency status. In other words, how service hours impact complaint counts changes depending on whether patients are residents or non-residents.
+
+**Gender:Hours in the zero-inflation part of the model:**  
+This interaction suggests that male and female patients differ in how the number of service hours affects their likelihood of making no complaints at all.
+
+```{r, message=FALSE, warning=FALSE}
+library(countreg)
+
+par(mfrow = c(1, 2))
+plot(residuals(zinb_int4, type = "pearson"), ylab = "Pearson residuals")
+plot(residuals(zinb_int4, type = "pearson") ~ zinb_int4$fitted, xlab = "Fitted values",
+     ylab = "Pearson residuals")
+mtext("Zero-Inflated NB model", side = 3, line = -2, outer = TRUE)
+par(mfrow = c(1, 1))
+
+rootogram(zinb_int4)
+```
+**Rootogram**  
+The rootogram shows how closely our model's predictions match the observed number of complaints. The zero counts are modeled exceptionally well, which is crucial because accurately capturing the frequency of zeros is the primary goal of a zero-inflated model. From counts 1-8, the observed and predicted frequencies closely align, demonstrating that the model effectively captures the general pattern of the data.
+
+**Residual Plots**  
+The residual plots help us assess if our model captures patterns effectively. Most residuals are within an acceptable range (±2), with only a few slightly higher values. This indicates the model generally fits the data well. Although there seems to be a decreasing variability (heteroscedasticity) as the predicted values increase, but is generally acceptable in count data.
+
+
+## VIII. Key Takeaways
+Our improved model provides detailed insights into what affects patient complaints about doctors, considering both why some doctors rarely get complaints (zero-inflation) and why some receive more (count model).
+
+**Count Model Insights**  
+**Patient Visits:** Doctors who see more patients receive significantly more complaints (p < 0.001).  
+**Doctor’s Gender:** Male doctors tend to receive more complaints than female doctors (p = 0.015).
+
+**Interaction of Residency and Work Hours:**  
+**Non-resident doctors (experienced):** More work hours significantly increase complaints (p = 0.004).  
+**Resident doctors:** The opposite effect occurs—more hours actually decrease complaints, possibly because extra hours contribute to experience and better patient care.
+
+**Zero-inflation Model Insights**     
+**Residency:** Resident doctors are significantly more likely to have no complaints at all (p = 0.008), suggesting residency status plays a crucial role.
+
+**Gender and Work Hours Interaction:**  
+**Female doctors:** Increased working hours significantly increase their likelihood of having no complaints (p = 0.036).
+**Male doctors:** This benefit from additional hours is significantly weaker, indicating differences in how workload impacts complaint patterns by gender.
+

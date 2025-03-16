@@ -1,0 +1,8 @@
+# R specific
+*.Rproj
+.Rproj.user
+.Rhistory
+.RData
+
+# Mac system files
+.DS_Store

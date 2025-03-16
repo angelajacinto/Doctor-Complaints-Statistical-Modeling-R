@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+<meta name="author" content="Angela Jacinto" />
+
+<meta name="date" content="2025-03-16" />
+
+<title>Modeling Complaints Against Doctors</title>
+
+<script src="libs/header-attrs-2.22/header-attrs.js"></script>
+<script src="libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="libs/bootstrap-3.3.5/css/bootstrap.min.css" rel="stylesheet" />
+<script src="libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="libs/navigation-1.1/tabsets.js"></script>
+<link href="libs/highlightjs-9.12.0/default.css" rel="stylesheet" />
+<script src="libs/highlightjs-9.12.0/highlight.js"></script>
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+
+
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+details > summary > p:only-child {
+  display: inline;
+}
+pre code {
+  padding: 0;
+}
+</style>
+
+
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before, .tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "\e259";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "\e258";
+  font-family: 'Glyphicons Halflings';
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+
+
+<div id="header">
+
+
+
+<h1 class="title toc-ignore">Modeling Complaints Against Doctors</h1>
+<h4 class="author">Angela Jacinto</h4>
+<h4 class="date">2025-03-16</h4>
+
+</div>
+
+
+<div id="i.-introduction" class="section level2">
+<h2>I. Introduction</h2>
+<p>Patient complaints provide essential feedback about healthcare
+service quality, but analyzing complaint data can be challenging because
+many patients report no complaints at all. To better understand this
+data, a specialized statistical approach called a Zero-Inflated Negative
+Binomial (ZINB) model is required.</p>
+</div>
+<div id="ii.-data-import-and-inspection" class="section level2">
+<h2>II. Data Import and Inspection</h2>
+<pre class="r"><code>df &lt;- read.table(&#39;../data/compdat.txt&#39;, header = TRUE, sep = &quot;\t&quot;, stringsAsFactors = FALSE)</code></pre>
+<pre class="r"><code>summary(df)</code></pre>
+<pre><code>##      visits       complaints      residency            gender         
+##  Min.   : 879   Min.   : 0.000   Length:94          Length:94         
+##  1st Qu.:1698   1st Qu.: 0.000   Class :character   Class :character  
+##  Median :2299   Median : 0.000   Mode  :character   Mode  :character  
+##  Mean   :2271   Mean   : 1.564                                        
+##  3rd Qu.:2776   3rd Qu.: 2.000                                        
+##  Max.   :3763   Max.   :11.000                                        
+##     revenue          hours     
+##  Min.   :203.9   Min.   : 589  
+##  1st Qu.:243.8   1st Qu.:1201  
+##  Median :263.7   Median :1494  
+##  Mean   :263.8   Mean   :1469  
+##  3rd Qu.:288.0   3rd Qu.:1700  
+##  Max.   :342.9   Max.   :2269</code></pre>
+<pre class="r"><code>str(df)</code></pre>
+<pre><code>## &#39;data.frame&#39;:    94 obs. of  6 variables:
+##  $ visits    : int  2014 3091 879 1780 3646 2690 1864 2782 3071 1502 ...
+##  $ complaints: int  2 3 1 1 11 1 2 6 9 3 ...
+##  $ residency : chr  &quot;Y&quot; &quot;N&quot; &quot;Y&quot; &quot;N&quot; ...
+##  $ gender    : chr  &quot;F&quot; &quot;M&quot; &quot;M&quot; &quot;M&quot; ...
+##  $ revenue   : num  263 335 206 226 289 ...
+##  $ hours     : num  1287 1588 705 1006 1667 ...</code></pre>
+</div>
+<div id="iii.-data-cleaning-and-pre-processing" class="section level2">
+<h2>III. Data Cleaning and Pre-processing</h2>
+<pre class="r"><code># Converting categorical variables to factors
+df$residency &lt;- as.factor(df$residency)
+df$gender &lt;- as.factor(df$gender)
+
+# Keeping rows where visits and complaints are 0 or positive (removing negative values)
+df &lt;- df[df$visits &gt;= 0 &amp; df$complaints &gt;= 0, ]</code></pre>
+</div>
+<div id="iv.-exploratory-data-analysis-eda" class="section level2">
+<h2>IV. Exploratory Data Analysis (EDA)</h2>
+<pre class="r"><code># Examining count variable complaints 
+table(df$gender, df$complaints)</code></pre>
+<pre><code>##    
+##      0  1  2  3  4  5  6  7  8  9 10 11
+##   F 25  5  3  2  0  1  0  0  0  1  0  0
+##   M 26  7  9  3  1  3  2  2  2  0  1  1</code></pre>
+<pre class="r"><code>table(df$residency, df$complaints)</code></pre>
+<pre><code>##    
+##      0  1  2  3  4  5  6  7  8  9 10 11
+##   N 26  5  6  1  1  3  1  2  2  1  0  1
+##   Y 25  7  6  4  0  1  1  0  0  0  1  0</code></pre>
+<pre class="r"><code>hist(df$complaints, main = &quot;Histogram of Complaints&quot;)</code></pre>
+<p><img src="../output/figures/unnamed-chunk-3-1.png" width="672" /></p>
+<pre class="r"><code>library(lattice)
+histogram(~complaints | gender*residency, df, breaks = 0:12 - 0.5, main = &quot;Histogram of complaints by Gender and Residency&quot;, xlab = &quot;Complaints&quot;, ylab = &quot;Frequency&quot;)</code></pre>
+<p><img src="../output/figures/unnamed-chunk-4-1.png" width="672" /></p>
+<p>The histogram reveals a high number of zeros in the dataset,
+indicating potential zero inflation; where there are more zeros than
+expected under a standard Poisson model. Additionally, the distribution
+is heavily right-skewed, suggesting overdispersion, meaning that a
+Poisson model may not be suitable. To confirm overdispersion, we should
+compare the variance and mean of the complaints variable.</p>
+</div>
+<div id="v.-checking-statistical-assumptions" class="section level2">
+<h2>V. Checking Statistical Assumptions</h2>
+<div id="confirming-overdispersion" class="section level3">
+<h3>Confirming overdispersion</h3>
+<pre class="r"><code># Calculate mean and variance of complaints
+mean_complaints &lt;- mean(df$complaints)
+var_complaints &lt;- var(df$complaints)
+
+# Check for overdispersion
+overdispersion &lt;- var_complaints &gt; mean_complaints
+print(paste(&quot;Mean:&quot;, mean_complaints, &quot;Variance:&quot;, var_complaints))</code></pre>
+<pre><code>## [1] &quot;Mean: 1.56382978723404 Variance: 6.35609700297416&quot;</code></pre>
+<p>We can see that the variance is much larger than the mean, which
+confirms the presence of overdispersion. This means the data is more
+spread out than what a standard Poisson model would expect.</p>
+<pre class="r"><code>library(AER)
+poisson_model &lt;- glm(complaints ~ gender + residency, family = poisson, data = df)
+dispersiontest(poisson_model)</code></pre>
+<pre><code>## 
+##  Overdispersion test
+## 
+## data:  poisson_model
+## z = 2.9138, p-value = 0.001785
+## alternative hypothesis: true dispersion is greater than 1
+## sample estimates:
+## dispersion 
+##   3.475724</code></pre>
+<p>To further confirm overdispersion, we use a dispersion test from the
+AER package. The p-value from the test is 0.001785, which is very small
+(anything below 0.05 is considered significant). This provides strong
+evidence that the Poisson model isn’t a good fit suggesting the use of a
+Negative Binomial model.</p>
+</div>
+<div id="confirming-zero-inflation" class="section level3">
+<h3>Confirming Zero-Inflation</h3>
+<p>A poisson model assumes that the probability of a zero count is:
+<span class="math display">\[P(Y = 0) = e^{-\lambda}\]</span></p>
+<p>To confirm the presence of zero inflation, we compare the observed
+number of zeros in our data to the expected number (<span
+class="math inline">\(\lambda\)</span>) under a Poisson model, which is
+used for modeling count data.</p>
+<pre class="r"><code># Calculate the observed proportion of zero complaints
+observed_zeros &lt;- sum(df$complaints == 0) / nrow(df)
+
+# Mean complaints
+lambda_hat &lt;- mean(df$complaints)
+
+# Expected proportion of zeros under Poisson distribution
+expected_zeros &lt;- exp(-lambda_hat)
+
+print(paste(&quot;Observed proportion of zeros:&quot;, round(observed_zeros, digits = 4)))</code></pre>
+<pre><code>## [1] &quot;Observed proportion of zeros: 0.5426&quot;</code></pre>
+<pre class="r"><code>print(paste(&quot;Expected proportion of zeros of Poisson model:&quot;, round(expected_zeros, digits = 4)))</code></pre>
+<pre><code>## [1] &quot;Expected proportion of zeros of Poisson model: 0.2093&quot;</code></pre>
+<p>The results show that 54.3% of the data consists of zeros, while the
+Poisson model only expects about 20.9%. This confirms zero inflation,
+suggesting a Zero-Inflated Poisson model may be needed.</p>
+</div>
+<div id="boxplots" class="section level3">
+<h3>Boxplots</h3>
+<pre class="r"><code>boxplot(df$complaints~df$residency, xlab=&quot;Residency&quot;, ylab=&quot;Number of Complaints&quot;)</code></pre>
+<p><img src="../output/figures/unnamed-chunk-8-1.png" width="672" /></p>
+<pre class="r"><code>boxplot(df$complaints~df$gender, xlab=&quot;Gender&quot;, ylab=&quot;Number of Complaints&quot;)</code></pre>
+<p><img src="../output/figures/unnamed-chunk-8-2.png" width="672" /></p>
+<p>The number of complaints appears to be similarly distributed between
+doctors in residency training and those not in training. However, the
+box plot reveals that male doctors receive more complaints compared to
+female doctors. To further support this conclusion, we use the Wilcoxon
+test (median based) to check for differences in distribution and the
+t-test to determine if the means differ significantly.</p>
+<pre class="r"><code>wilcox.test(df$complaints ~ df$gender)</code></pre>
+<pre><code>## 
+##  Wilcoxon rank sum test with continuity correction
+## 
+## data:  df$complaints by df$gender
+## W = 774.5, p-value = 0.01799
+## alternative hypothesis: true location shift is not equal to 0</code></pre>
+<p>The p-value of 0.01799 is less than 0.05, so we have enough evidence
+to say that the number of complaints is significantly different between
+male and female doctors.</p>
+<pre class="r"><code>t.test(df$complaints ~ df$gender, var.equal = FALSE)</code></pre>
+<pre><code>## 
+##  Welch Two Sample t-test
+## 
+## data:  df$complaints by df$gender
+## t = -2.5216, df = 91.974, p-value = 0.0134
+## alternative hypothesis: true difference in means between group F and group M is not equal to 0
+## 95 percent confidence interval:
+##  -2.1402417 -0.2542581
+## sample estimates:
+## mean in group F mean in group M 
+##       0.8378378       2.0350877</code></pre>
+<p>The p-value of 0.0134 is also less than 0.05, meaning there is a
+clear difference in the average number of complaints between male and
+female doctors. The confidence interval [-2.14, -0.25] does not include
+0, which further confirms the difference.</p>
+</div>
+<div id="examining-continuous-variables" class="section level3">
+<h3>Examining Continuous Variables</h3>
+<pre class="r"><code>hist(df$visits, main = &quot;Histogram of visits&quot; )</code></pre>
+<p><img src="../output/figures/unnamed-chunk-11-1.png" width="672" /></p>
+<pre class="r"><code>hist(df$revenue, main = &quot;Histogram of revenue&quot; )</code></pre>
+<p><img src="../output/figures/unnamed-chunk-11-2.png" width="672" /></p>
+<pre class="r"><code>hist(df$hours, main = &quot;Histogram of hours&quot; )</code></pre>
+<p><img src="../output/figures/unnamed-chunk-11-3.png" width="672" /></p>
+<p>The histograms of the continuous variables show only slight skewness,
+so applying a log transformation is not necessary.</p>
+<pre class="r"><code>plot(log(df$complaints + 1) ~ df$hours, xlab=&quot;Hours&quot;, ylab=&quot;Log(Number of Complaints + 1)&quot;)</code></pre>
+<p><img src="../output/figures/unnamed-chunk-12-1.png" width="672" /></p>
+<pre class="r"><code>plot(log(df$complaints + 1) ~ df$visits, xlab=&quot;Visits&quot;, ylab=&quot;Log(Number of Complaints + 1)&quot;)</code></pre>
+<p><img src="../output/figures/unnamed-chunk-12-2.png" width="672" /></p>
+<pre class="r"><code>plot(log(df$complaints + 1) ~ df$revenue, xlab=&quot;Revenue&quot;, ylab=&quot;Log(Number of Complaints + 1)&quot;)</code></pre>
+<p><img src="../output/figures/unnamed-chunk-12-3.png" width="672" /></p>
+<p>These plots visualize the relationship between hours, visits, and
+revenue against the log-transformed number of complaints. There seems to
+be a moderate positive linear relationship between visits and hours.
+However, the log number of complaints appears to be randomly distributed
+with revenue, suggesting that revenue is not a strong predictor of
+complaints. To further measure these relationships, we need to perform a
+Correlation Analysis.</p>
+<p>Note: Since the complaints variable contains zeros, applying
+<code>log(df$complaints)</code> would result in <code>-Inf</code>
+values, leading to inaccurate plots. To avoid this issue, we use
+<code>log(df$complaints + 1)</code>.</p>
+<pre class="r"><code>cor.test(df$hours, log(df$complaints + 1))</code></pre>
+<pre><code>## 
+##  Pearson&#39;s product-moment correlation
+## 
+## data:  df$hours and log(df$complaints + 1)
+## t = 0.49771, df = 92, p-value = 0.6199
+## alternative hypothesis: true correlation is not equal to 0
+## 95 percent confidence interval:
+##  -0.1523968  0.2517935
+## sample estimates:
+##        cor 
+## 0.05182029</code></pre>
+<pre class="r"><code>cor.test(df$visits, log(df$complaints + 1))</code></pre>
+<pre><code>## 
+##  Pearson&#39;s product-moment correlation
+## 
+## data:  df$visits and log(df$complaints + 1)
+## t = 3.0828, df = 92, p-value = 0.002707
+## alternative hypothesis: true correlation is not equal to 0
+## 95 percent confidence interval:
+##  0.1102012 0.4789113
+## sample estimates:
+##       cor 
+## 0.3059859</code></pre>
+<pre class="r"><code>cor.test(df$revenue, log(df$complaints + 1))</code></pre>
+<pre><code>## 
+##  Pearson&#39;s product-moment correlation
+## 
+## data:  df$revenue and log(df$complaints + 1)
+## t = -0.41275, df = 92, p-value = 0.6807
+## alternative hypothesis: true correlation is not equal to 0
+## 95 percent confidence interval:
+##  -0.2434887  0.1610269
+## sample estimates:
+##        cor 
+## -0.0429928</code></pre>
+<p>There is no significant relationship between hours worked and the
+number of complaints. The only significant predictor is visits (p =
+0.0027, r = 0.31). Hours (p = 0.6199, r = 0.05) and revenue (p = 0.6807,
+r = -0.04) are not strong predictors.</p>
+</div>
+<div id="checking-for-multicollinearity-using-vif"
+class="section level3">
+<h3>Checking for multicollinearity using VIF</h3>
+<p>The Variance Inflation Factor helps detect multicollinearity, which
+happens when predictors are too closely related. It measures how much a
+predictor’s variance is inflated due to correlations with other
+predictors. If VIF &gt; 5, multicollinearity is a concern. If VIF &gt;
+10, it’s a serious issue which needs to be addressed.</p>
+<pre class="r"><code>library(car)
+vif_model &lt;- lm(complaints ~ visits + residency + gender + revenue + hours, data = df)
+vif_values &lt;- vif(vif_model)
+print(vif_values)</code></pre>
+<pre><code>##    visits residency    gender   revenue     hours 
+##  1.299671  1.420006  1.321537  1.070518  1.321374</code></pre>
+<p>The VIF values are all &lt; 2, which means multicollinearity isn’t a
+concern.</p>
+</div>
+</div>
+<div id="vi.-model-selection-and-development" class="section level2">
+<h2>VI. Model Selection and Development</h2>
+<p>Since overdispersion and zero inflation are present, neither a
+Negative Binomial nor a Zero-Inflated Poisson model alone is enough.
+Therefore, Zero-Inflated Negative Binomial is the best choice, which
+will allow us to understand: 1. How different factors influence the
+number of complaints when they do occur (the “count” part), and 2. Why
+some observations have no complaints at all (the “zero-inflation”
+part).</p>
+<pre class="r"><code>predictors &lt;- c(&quot;visits&quot;, &quot;residency&quot;, &quot;gender&quot;, &quot;revenue&quot;, &quot;hours&quot;)
+base_formula &lt;- as.formula(paste(&quot;complaints ~&quot;, paste(predictors, collapse = &quot; + &quot;), &quot;|&quot;, paste(predictors, collapse = &quot; + &quot;)))</code></pre>
+<pre class="r"><code>library(pscl)
+zinb_base &lt;- zeroinfl(base_formula, data = df, dist = &#39;negbin&#39;)
+summary(zinb_base)</code></pre>
+<pre><code>## 
+## Call:
+## zeroinfl(formula = base_formula, data = df, dist = &quot;negbin&quot;)
+## 
+## Pearson residuals:
+##      Min       1Q   Median       3Q      Max 
+## -1.07975 -0.65173 -0.24077  0.08785  3.31293 
+## 
+## Count model coefficients (negbin with log link):
+##               Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)  3.7050283  1.4261221   2.598  0.00938 ** 
+## visits       0.0022846        NaN     NaN      NaN    
+## residencyY  -0.1785727  0.3117556  -0.573  0.56678    
+## genderM      0.5783319  0.3036332   1.905  0.05682 .  
+## revenue     -0.0174033  0.0043892  -3.965 7.34e-05 ***
+## hours       -0.0029508  0.0007413  -3.980 6.88e-05 ***
+## Log(theta)   0.5487658        NaN     NaN      NaN    
+## 
+## Zero-inflation model coefficients (binomial with logit link):
+##             Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept) 22.08077    4.43783   4.976 6.51e-07 ***
+## visits       0.01180        NaN     NaN      NaN    
+## residencyY   4.56503    1.45564   3.136  0.00171 ** 
+## genderM      0.26974    1.55676   0.173  0.86244    
+## revenue     -0.11795    0.01141 -10.339  &lt; 2e-16 ***
+## hours       -0.01931        NaN     NaN      NaN    
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1 
+## 
+## Theta = 1.7311 
+## Number of iterations in BFGS optimization: 52 
+## Log-likelihood: -127.2 on 13 Df</code></pre>
+<p>After fitting the base model, we can see that the <code>visits</code>
+predictor produced NaNs, meaning the model couldn’t estimate some
+coefficients properly. This could be due to perfect separation, where
+certain values of <code>visits</code> always lead to zero complaints,
+while others always lead to non-zero complaints. Since the model
+requires variation to estimate probabilities, this lack of variability
+makes it difficult to compute meaningful coefficients.</p>
+<pre class="r"><code>df$zero_complaints &lt;- as.numeric(df$complaints == 0)
+aggregate(zero_complaints ~ visits, data = df, mean)</code></pre>
+<pre><code>##    visits zero_complaints
+## 1     879               0
+## 2     935               1
+## 3     949               1
+## 4     954               1
+## 5     972               1
+## 6     983               1
+## 7    1029               0
+## 8    1195               1
+## 9    1243               1
+## 10   1343               1
+## 11   1344               1
+## 12   1349               1
+## 13   1390               1
+## 14   1451               0
+## 15   1473               1
+## 16   1486               0
+## 17   1502               0
+## 18   1555               1
+## 19   1566               1
+## 20   1569               1
+## 21   1590               1
+## 22   1643               1
+## 23   1661               1
+## 24   1671               1
+## 25   1780               0
+## 26   1800               1
+## 27   1820               1
+## 28   1840               1
+## 29   1857               1
+## 30   1863               0
+## 31   1864               0
+## 32   1960               1
+## 33   2008               0
+## 34   2014               0
+## 35   2043               0
+## 36   2046               0
+## 37   2123               0
+## 38   2138               0
+## 39   2167               1
+## 40   2178               0
+## 41   2185               1
+## 42   2211               0
+## 43   2234               0
+## 44   2247               1
+## 45   2269               0
+## 46   2278               0
+## 47   2296               1
+## 48   2302               0
+## 49   2338               0
+## 50   2348               1
+## 51   2378               1
+## 52   2390               1
+## 53   2431               0
+## 54   2438               0
+## 55   2445               1
+## 56   2458               0
+## 57   2492               1
+## 58   2504               0
+## 59   2519               1
+## 60   2548               0
+## 61   2556               0
+## 62   2566               1
+## 63   2574               1
+## 64   2592               0
+## 65   2626               1
+## 66   2690               0
+## 67   2701               0
+## 68   2741               0
+## 69   2744               1
+## 70   2757               1
+## 71   2782               0
+## 72   2842               1
+## 73   2896               1
+## 74   2906               0
+## 75   2908               1
+## 76   2927               0
+## 77   3003               0
+## 78   3010               0
+## 79   3022               0
+## 80   3054               1
+## 81   3060               0
+## 82   3071               0
+## 83   3077               1
+## 84   3091               0
+## 85   3190               1
+## 86   3256               1
+## 87   3328               0
+## 88   3374               1
+## 89   3424               1
+## 90   3426               1
+## 91   3544               1
+## 92   3646               0
+## 93   3745               1
+## 94   3763               0</code></pre>
+<p>Some values of <code>visits</code> are always 1 in zero_complaints
+while some values of visits are always 0 in zero_complaints, confirming
+perfect separation. Therefore, we remove it from the zero-inflation
+model while keeping it in the count model.</p>
+<pre class="r"><code>base_formula &lt;- as.formula(paste(&quot;complaints ~&quot;, paste(predictors, collapse = &quot; + &quot;), &quot;| residency + gender + revenue + hours&quot;))
+
+zinb_base &lt;- zeroinfl(base_formula, data = df, dist = &#39;negbin&#39;)
+summary(zinb_base)</code></pre>
+<pre><code>## 
+## Call:
+## zeroinfl(formula = base_formula, data = df, dist = &quot;negbin&quot;)
+## 
+## Pearson residuals:
+##     Min      1Q  Median      3Q     Max 
+## -1.3431 -0.6539 -0.3734  0.2367  3.4994 
+## 
+## Count model coefficients (negbin with log link):
+##               Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)  1.5863020  1.6116961   0.984   0.3250    
+## visits       0.0016386  0.0002697   6.076 1.23e-09 ***
+## residencyY  -0.3208456  0.3041577  -1.055   0.2915    
+## genderM      0.0850875  0.2908494   0.293   0.7699    
+## revenue     -0.0095001  0.0037252  -2.550   0.0108 *  
+## hours       -0.0014019  0.0011620  -1.207   0.2276    
+## Log(theta)   2.2382402  0.0590269  37.919  &lt; 2e-16 ***
+## 
+## Zero-inflation model coefficients (binomial with logit link):
+##               Estimate Std. Error z value Pr(&gt;|z|)  
+## (Intercept) -1.4011515  3.6956584  -0.379    0.705  
+## residencyY   0.4268874  0.8761220   0.487    0.626  
+## genderM     -1.2355764  0.6721250  -1.838    0.066 .
+## revenue      0.0022286  0.0100308   0.222    0.824  
+## hours        0.0006457  0.0023421   0.276    0.783  
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1 
+## 
+## Theta = 9.3768 
+## Number of iterations in BFGS optimization: 19 
+## Log-likelihood: -134.8 on 12 Df</code></pre>
+<p><strong>Count Model (number of complaints)</strong><br />
+<strong>Visits:</strong> A higher number of visits is strongly linked to
+a higher expected number of complaints. (p &lt; 0.001)<br />
+<strong>Revenue:</strong> Organizations with higher revenue tend to have
+fewer complaints. (p = 0.0108)<br />
+Residency, Gender, Hours: These factors did not show a strong link with
+the number of complaints in this dataset.</p>
+<p><strong>Zero-Inflation Model (likelihood of zero
+complaints)</strong><br />
+<strong>Gender:</strong> Shows a marginal (slightly weaker) connection
+to having zero complaints.<br />
+<strong>Residency, Revenue, Hours:</strong> These were not strongly
+associated with whether there are zero complaints.</p>
+<p>Finally, the theta value (9.3768) tells us that the data have more
+variation (overdispersion) than what a simple Poisson model would
+usually handle. This justifies using a negative binomial approach, which
+is better at capturing overdispersion.</p>
+<div id="introducing-interaction-terms-in-the-count-model"
+class="section level3">
+<h3>Introducing interaction terms in the count model</h3>
+<p>To better capture relationships between predictors, we add
+interaction terms based on theoretical relevance rather than testing all
+possible combinations. Interaction terms help us understand if the
+influence of one predictor on complaints changes according to another
+factor.</p>
+<p><strong>Potential interactions:</strong><br />
+<strong>visits:revenue</strong> - We investigate whether the impact of
+patient visit frequency on the number of complaints changes depending on
+the doctor’s revenue.<br />
+<strong>gender:revenue</strong> - We explore if the effect of a doctor’s
+revenue on complaints differs between male and female doctors.<br />
+<strong>residency:hours</strong> - We examine whether the effect of
+service hours on complaints differs for resident and non-resident
+patients.</p>
+<pre class="r"><code># Add interactions one at a time to assess their contribution
+interaction_formula &lt;- as.formula(&quot;complaints ~ visits + residency + gender + revenue + hours + 
+                                  visits:revenue + gender:revenue + residency:hours | 
+                                  residency + gender + revenue + hours&quot;)
+
+zinb_interaction &lt;- zeroinfl(interaction_formula, data = df, dist = &#39;negbin&#39;)
+summary(zinb_interaction)</code></pre>
+<pre><code>## 
+## Call:
+## zeroinfl(formula = interaction_formula, data = df, dist = &quot;negbin&quot;)
+## 
+## Pearson residuals:
+##     Min      1Q  Median      3Q     Max 
+## -1.3399 -0.6967 -0.3074  0.2491  3.4254 
+## 
+## Count model coefficients (negbin with log link):
+##                    Estimate Std. Error z value Pr(&gt;|z|)
+## (Intercept)       5.904e-01        NaN     NaN      NaN
+## visits            1.688e-03        NaN     NaN      NaN
+## residencyY        3.458e+00        NaN     NaN      NaN
+## genderM          -1.691e+00        NaN     NaN      NaN
+## revenue          -1.688e-02        NaN     NaN      NaN
+## hours             2.191e-04        NaN     NaN      NaN
+## visits:revenue   -9.136e-08        NaN     NaN      NaN
+## genderM:revenue   7.798e-03        NaN     NaN      NaN
+## residencyY:hours -2.407e-03        NaN     NaN      NaN
+## Log(theta)        2.653e+00        NaN     NaN      NaN
+## 
+## Zero-inflation model coefficients (binomial with logit link):
+##              Estimate Std. Error z value Pr(&gt;|z|)
+## (Intercept) -1.505809        NaN     NaN      NaN
+## residencyY   0.809555        NaN     NaN      NaN
+## genderM     -1.101694        NaN     NaN      NaN
+## revenue     -0.001119        NaN     NaN      NaN
+## hours        0.001095        NaN     NaN      NaN
+## 
+## Theta = 14.1899 
+## Number of iterations in BFGS optimization: 29 
+## Log-likelihood:  -131 on 15 Df</code></pre>
+<p>The interaction terms may be highly correlated with their main
+effects or with each other, especially with limited data.</p>
+<pre class="r"><code># Standardizing continuous variables to reduce multicollinearity
+df$visits_c &lt;- scale(df$visits, center = TRUE, scale = TRUE)
+df$revenue_c &lt;- scale(df$revenue, center = TRUE, scale = TRUE)
+df$hours_c &lt;- scale(df$hours, center = TRUE, scale = TRUE)</code></pre>
+<pre class="r"><code># Test one interaction at a time
+formula1 &lt;- as.formula(&quot;complaints ~ visits_c + residency + gender + revenue_c + hours_c + 
+                       visits_c:revenue_c | 
+                       residency + gender + revenue_c + hours_c&quot;)
+                       
+zinb_int1 &lt;- zeroinfl(formula1, data = df, dist = &quot;negbin&quot;)
+summary(zinb_int1)</code></pre>
+<pre><code>## 
+## Call:
+## zeroinfl(formula = formula1, data = df, dist = &quot;negbin&quot;)
+## 
+## Pearson residuals:
+##     Min      1Q  Median      3Q     Max 
+## -1.3625 -0.6648 -0.3893  0.2529  3.3609 
+## 
+## Count model coefficients (negbin with log link):
+##                    Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)         0.72676    0.31305   2.322   0.0203 *  
+## visits_c            1.23621    0.27899   4.431 9.38e-06 ***
+## residencyY         -0.29053    0.28486  -1.020   0.3078    
+## genderM             0.10627    0.28443   0.374   0.7087    
+## revenue_c          -0.27908    0.15427  -1.809   0.0704 .  
+## hours_c            -0.52548    0.28805  -1.824   0.0681 .  
+## visits_c:revenue_c -0.06693    0.13412  -0.499   0.6177    
+## Log(theta)          2.31048    1.22122   1.892   0.0585 .  
+## 
+## Zero-inflation model coefficients (binomial with logit link):
+##             Estimate Std. Error z value Pr(&gt;|z|)  
+## (Intercept)  0.12619    0.52438   0.241    0.810  
+## residencyY   0.43267    0.67127   0.645    0.519  
+## genderM     -1.20796    0.59963  -2.015    0.044 *
+## revenue_c    0.08628    0.30989   0.278    0.781  
+## hours_c      0.20638    0.32580   0.633    0.526  
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1 
+## 
+## Theta = 10.0793 
+## Number of iterations in BFGS optimization: 19 
+## Log-likelihood: -134.7 on 13 Df</code></pre>
+<pre class="r"><code>formula2 &lt;- as.formula(&quot;complaints ~ visits_c + residency + gender + revenue_c + hours_c + 
+                        gender:revenue_c | 
+                       residency + gender + revenue_c + hours_c&quot;)
+                       
+zinb_int2 &lt;- zeroinfl(formula2, data = df, dist = &quot;negbin&quot;)
+summary(zinb_int2)</code></pre>
+<pre><code>## 
+## Call:
+## zeroinfl(formula = formula2, data = df, dist = &quot;negbin&quot;)
+## 
+## Pearson residuals:
+##     Min      1Q  Median      3Q     Max 
+## -1.2326 -0.6877 -0.3641  0.2377  3.4109 
+## 
+## Count model coefficients (negbin with log link):
+##                   Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)         0.5322     0.3839   1.386   0.1657    
+## visits_c            1.2491     0.2700   4.627 3.71e-06 ***
+## residencyY         -0.2994     0.2855  -1.049   0.2943    
+## genderM             0.2698     0.3478   0.776   0.4379    
+## revenue_c          -0.6687     0.3894  -1.717   0.0859 .  
+## hours_c            -0.5920     0.2976  -1.989   0.0467 *  
+## genderM:revenue_c   0.3843     0.3675   1.046   0.2957    
+## Log(theta)          2.1285     1.0667   1.995   0.0460 *  
+## 
+## Zero-inflation model coefficients (binomial with logit link):
+##             Estimate Std. Error z value Pr(&gt;|z|)  
+## (Intercept) -0.03418    0.60183  -0.057   0.9547  
+## residencyY   0.51340    0.70086   0.733   0.4638  
+## genderM     -1.10551    0.62600  -1.766   0.0774 .
+## revenue_c   -0.01480    0.33227  -0.045   0.9645  
+## hours_c      0.19843    0.33554   0.591   0.5543  
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1 
+## 
+## Theta = 8.4027 
+## Number of iterations in BFGS optimization: 18 
+## Log-likelihood: -134.3 on 13 Df</code></pre>
+<pre class="r"><code>formula3 &lt;- as.formula(&quot;complaints ~ visits_c + residency + gender + revenue_c + hours_c + 
+                        residency:hours_c | 
+                       residency + gender + revenue_c + hours_c&quot;)
+                       
+zinb_int3 &lt;- zeroinfl(formula3, data = df, dist = &quot;negbin&quot;)
+summary(zinb_int3)</code></pre>
+<pre><code>## 
+## Call:
+## zeroinfl(formula = formula3, data = df, dist = &quot;negbin&quot;)
+## 
+## Pearson residuals:
+##     Min      1Q  Median      3Q     Max 
+## -1.3884 -0.6847 -0.3445  0.2409  3.7030 
+## 
+## Count model coefficients (negbin with log link):
+##                    Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)         0.32092    0.40263   0.797  0.42542    
+## visits_c            1.13399    0.30036   3.775  0.00016 ***
+## residencyY         -0.05482    0.31928  -0.172  0.86367    
+## genderM             0.28602    0.33656   0.850  0.39541    
+## revenue_c          -0.28467    0.14843  -1.918  0.05512 .  
+## hours_c             0.22178    0.50795   0.437  0.66238    
+## residencyY:hours_c -0.90543    0.39849  -2.272  0.02308 *  
+## Log(theta)          2.68040    1.55668   1.722  0.08509 .  
+## 
+## Zero-inflation model coefficients (binomial with logit link):
+##               Estimate Std. Error z value Pr(&gt;|z|)  
+## (Intercept) -0.1679438  0.6969832  -0.241   0.8096  
+## residencyY   0.8214535  0.7930568   1.036   0.3003  
+## genderM     -1.1303974  0.6398334  -1.767   0.0773 .
+## revenue_c    0.0009153  0.3175188   0.003   0.9977  
+## hours_c      0.4284045  0.3963558   1.081   0.2798  
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1 
+## 
+## Theta = 14.5909 
+## Number of iterations in BFGS optimization: 20 
+## Log-likelihood: -131.2 on 13 Df</code></pre>
+</div>
+<div
+id="introducing-interaction-terms-in-the-zero-inflation-component-probability-of-having-zero-complaints"
+class="section level3">
+<h3>Introducing interaction terms in the zero-inflation component
+(probability of having zero complaints)</h3>
+<pre class="r"><code>formula4 &lt;- as.formula(&quot;complaints ~ visits_c + residency + gender + revenue_c + hours_c + 
+                        residency:hours_c | 
+                       residency + gender + revenue_c + hours_c + gender:hours_c&quot;)
+                       
+zinb_int4 &lt;- zeroinfl(formula4, data = df, dist = &quot;negbin&quot;)
+summary(zinb_int4)</code></pre>
+<pre><code>## 
+## Call:
+## zeroinfl(formula = formula4, data = df, dist = &quot;negbin&quot;)
+## 
+## Pearson residuals:
+##     Min      1Q  Median      3Q     Max 
+## -1.1655 -0.6576 -0.3144  0.2259  4.1363 
+## 
+## Count model coefficients (negbin with log link):
+##                    Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)         -0.2211     0.3165  -0.699 0.484766    
+## visits_c             0.9038     0.2261   3.998  6.4e-05 ***
+## residencyY           0.2789     0.2708   1.030 0.303113    
+## genderM              0.7299     0.2986   2.444 0.014522 *  
+## revenue_c           -0.2358     0.1427  -1.652 0.098581 .  
+## hours_c              0.8132     0.2850   2.853 0.004326 ** 
+## residencyY:hours_c  -1.3178     0.3438  -3.833 0.000127 ***
+## Log(theta)           1.9154     0.8619   2.222 0.026259 *  
+## 
+## Zero-inflation model coefficients (binomial with logit link):
+##                 Estimate Std. Error z value Pr(&gt;|z|)   
+## (Intercept)      -6.1882     3.2590  -1.899  0.05759 . 
+## residencyY        3.0208     1.1357   2.660  0.00782 **
+## genderM           3.3564     2.9467   1.139  0.25468   
+## revenue_c        -0.1012     0.3936  -0.257  0.79706   
+## hours_c           5.9439     2.8317   2.099  0.03581 * 
+## genderM:hours_c  -5.5409     2.8231  -1.963  0.04969 * 
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1 
+## 
+## Theta = 6.7895 
+## Number of iterations in BFGS optimization: 26 
+## Log-likelihood: -125.2 on 14 Df</code></pre>
+<p>Adding an interaction term <code>gender:hours_c</code> to the
+zero-inflation part of the model improved our understanding of why some
+patients never report complaints. This interaction suggests that the
+relationship between service hours and the likelihood of having zero
+complaints differs between male and female patients.</p>
+<p>Additionally, the previously identified interaction
+<code>residency:hours</code> remains important in the count model,
+meaning that the impact of service hours on the number of complaints
+continues to vary depending on patient residency status. These
+interactions help us better understand not just how often complaints
+occur, but also why certain patients might never complain at all.</p>
+</div>
+</div>
+<div id="vii.-model-comparison" class="section level2">
+<h2>VII. Model Comparison</h2>
+<pre class="r"><code>models &lt;- list(base = zinb_base, int1 = zinb_int1, int2 = zinb_int2, int3 = zinb_int3, int4 = zinb_int4)
+AIC_values &lt;- sapply(models, AIC)
+BIC_values &lt;- sapply(models, BIC)
+comparison &lt;- data.frame(AIC = AIC_values, BIC = BIC_values)
+comparison</code></pre>
+<pre><code>##           AIC      BIC
+## base 293.6972 324.2168
+## int1 295.4485 328.5114
+## int2 294.5556 327.6184
+## int3 288.3721 321.4349
+## int4 278.3893 313.9955</code></pre>
+<p>Based on the AIC and BIC values, model <code>int4</code> is clearly
+the best choice, with the lowest AIC and BIC. The interaction between
+<code>residency:hours_c</code> in the count component and
+<code>gender:hours_c</code> in the zero-inflation component demonstrates
+an important relationship to the data that improves model
+performance.</p>
+<p><strong>Residency:Hours in the count model:</strong><br />
+This suggests that the number of complaints depends not only on service
+hours but also varies by patient residency status. In other words, how
+service hours impact complaint counts changes depending on whether
+patients are residents or non-residents.</p>
+<p><strong>Gender:Hours in the zero-inflation part of the
+model:</strong><br />
+This interaction suggests that male and female patients differ in how
+the number of service hours affects their likelihood of making no
+complaints at all.</p>
+<pre class="r"><code>library(countreg)
+
+par(mfrow = c(1, 2))
+plot(residuals(zinb_int4, type = &quot;pearson&quot;), ylab = &quot;Pearson residuals&quot;)
+plot(residuals(zinb_int4, type = &quot;pearson&quot;) ~ zinb_int4$fitted, xlab = &quot;Fitted values&quot;,
+     ylab = &quot;Pearson residuals&quot;)
+mtext(&quot;Zero-Inflated NB model&quot;, side = 3, line = -2, outer = TRUE)</code></pre>
+<p><img src="../output/figures/unnamed-chunk-26-1.png" width="672" /></p>
+<pre class="r"><code>par(mfrow = c(1, 1))
+
+rootogram(zinb_int4)</code></pre>
+<p><img src="../output/figures/unnamed-chunk-26-2.png" width="672" />
+<strong>Rootogram</strong><br />
+The rootogram shows how closely our model’s predictions match the
+observed number of complaints. The zero counts are modeled exceptionally
+well, which is crucial because accurately capturing the frequency of
+zeros is the primary goal of a zero-inflated model. From counts 1-8, the
+observed and predicted frequencies closely align, demonstrating that the
+model effectively captures the general pattern of the data.</p>
+<p><strong>Residual Plots</strong><br />
+The residual plots help us assess if our model captures patterns
+effectively. Most residuals are within an acceptable range (±2), with
+only a few slightly higher values. This indicates the model generally
+fits the data well. Although there seems to be a decreasing variability
+(heteroscedasticity) as the predicted values increase, but is generally
+acceptable in count data.</p>
+</div>
+<div id="viii.-key-takeaways" class="section level2">
+<h2>VIII. Key Takeaways</h2>
+<p>Our improved model provides detailed insights into what affects
+patient complaints about doctors, considering both why some doctors
+rarely get complaints (zero-inflation) and why some receive more (count
+model).</p>
+<p><strong>Count Model Insights</strong><br />
+<strong>Patient Visits:</strong> Doctors who see more patients receive
+significantly more complaints (p &lt; 0.001).<br />
+<strong>Doctor’s Gender:</strong> Male doctors tend to receive more
+complaints than female doctors (p = 0.015).</p>
+<p><strong>Interaction of Residency and Work Hours:</strong><br />
+<strong>Non-resident doctors (experienced):</strong> More work hours
+significantly increase complaints (p = 0.004).<br />
+<strong>Resident doctors:</strong> The opposite effect occurs—more hours
+actually decrease complaints, possibly because extra hours contribute to
+experience and better patient care.</p>
+<p><strong>Zero-inflation Model Insights</strong><br />
+<strong>Residency:</strong> Resident doctors are significantly more
+likely to have no complaints at all (p = 0.008), suggesting residency
+status plays a crucial role.</p>
+<p><strong>Gender and Work Hours Interaction:</strong><br />
+<strong>Female doctors:</strong> Increased working hours significantly
+increase their likelihood of having no complaints (p = 0.036).
+<strong>Male doctors:</strong> This benefit from additional hours is
+significantly weaker, indicating differences in how workload impacts
+complaint patterns by gender.</p>
+</div>
+
+
+
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
